@@ -46,8 +46,10 @@ class filehandler:
         else:
             tmp_txt = r"""[Sttings]
 DefaultWaitTime:1
+LogName:pyautogui_tester
 # 0:None 1:low 2:middle 3:high
 LogLevel:3
+
 # sample definition
 sampleexe:C:\sample\sample.exe
 samplebat:C:\sample\sample.bat
@@ -58,24 +60,33 @@ samplebat:C:\sample\sample.bat
             self.read_actions()
             sys.exit()
         tmp_list = tmp_txt.split("\n")
-        tmp_list = [i for i in tmp_txt if i.find("#")!=0]
+        tmp_list = [i for i in tmp_list if i.find(":") > 0]
         for line in tmp_list:
+            if line[0] == "#":
+                continue
             key = line.split(":")[0]
-            value = line[len(line.find(":")):]
+            value = line[line.find(":")+1:]
             if key == "DefaultWaitTime":
                 try:
-                    self.DefaultWaitTime = value
+                    self.DefaultWaitTime = int(value)
                 except:
                     text = "DefaultWaitTime was not found in setting.data"
                     self.write_log(text,1)
                     self.DefaultWaitTime = 1
             elif key == "LogLevel":
                 try:
-                    self.LogLevel = value
+                    self.LogLevel = int(value)
                 except:
                     text = "LogLevel was not found in setting.data"
                     self.write_log(text,1)
                     self.LogLevel = 3
+            elif key == "LogName":
+                try:
+                    self.LogName = value
+                except:
+                    text = "LogName was not found in setting.data"
+                    self.write_log(text,1)
+                    self.LogName = "pyautogui_tester"
             else:
                 try:
                     self.settings[key] = value
@@ -86,7 +97,18 @@ samplebat:C:\sample\sample.bat
     def replace_setting_keywords(self,text):
         for key in self.settings.keys():
             text = text.replace(f"%{key}%",str(self.settings[key]))
+        text = self.environ_replace(text)
         return text       
+    
+    def environ_replace(self,text):
+        env = os.environ
+        tmp_keys = env.keys()
+        for key in tmp_keys:
+            tmp_list = env[key].split(";")
+            if len(tmp_list) > 1:
+                continue
+            text = text.replace(f"%{key}%",str(tmp_list[0]))
+        return text
     
     def read_actions(self):
         self.actions = []
@@ -104,7 +126,7 @@ samplebat:C:\sample\sample.bat
 (tab,space)
 # 特殊キーの指定
 (waitThread)
-# 直前に実行したスレッドと合流して、処理を待つ
+# 全スレッドと合流します
 (waitprocesskill:SystemConfig.exe)
 # プロセスがなくなるまで待機します(Timeoutは600s)
 (waitprocessstart:SystemConfig.exe)
@@ -113,11 +135,11 @@ samplebat:C:\sample\sample.bat
 # 指定したフォルダ内のファイル数が変わるまで待ちます(Timeoutは600s)
 (getscreenshot:samplefile)
 # スクリーンショットを取得 拡張子がついていない場合は自動でpngファイルとして保存
-(launchfile:C:\ssample\sample.exe)
+(launchfile:C:\sample\sample.exe)
 # 任意のファイルを起動します
-(launchfilebythread:C:\ssample\sample.exe)
+(launchfilebythread:C:\sample\sample.exe)
 # 任意のファイルを別スレッドで起動します
-(launchfilebyprocess:C:\ssample\sample.exe)
+(launchfilebyprocess:C:\sample\sample.exe)
 # 任意のファイルを別プロセスで起動します
 (activewindow:Test Dialog)
 # 任意のウィンドウをアクティブにします
@@ -137,6 +159,13 @@ samplebat:C:\sample\sample.bat
 # Settings.data内で指定した変数は以下のように使用することが可能
 (launchfile:%sampleexe%)
 
+
+(SHUTDOWN)
+プロセスを停止してOSシャットダウン
+(RESTART)
+プロセスを停止してOS再起動
+(END)
+# 処理を中断します
 """
             with open(actions_file,"w",encoding="shift_jis") as f:
                 f.write(tmp_txt)
@@ -155,11 +184,18 @@ samplebat:C:\sample\sample.bat
         self.actions = tmp_list
     
     def write_log(self,text,level):
-        if (level > self.LogLevel):
-            return
+        try:
+            if (level > self.LogLevel):
+                return
+        except:
+            pass
         time_line = self.config.get_time_ymdhms()
         log_dir = self.config.get_log_dir()
-        with open(fr"{log_dir}\pyautogui_tester.log","a",encoding="shift_jis") as f:
+        if len(self.LogName) > 0:
+            logname = self.LogName
+        else:
+            logname = "pyautogui_tester"
+        with open(fr"{log_dir}\{logname}.log","a",encoding="shift_jis") as f:
             f.write(f"[{time_line}] {text}\n")
     
     def write_error(self,text,e,level):
